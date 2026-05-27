@@ -258,6 +258,41 @@ const WORD_MAP = {
 
   // Question words
   why: 'W AY', how: 'HH AW', where: 'W EH R', when: 'W EH N',
+
+  // Common missing from CMUdict cross-check
+  language: 'L AE NG G W AH JH', together: 'T AH G EH DH ER',
+  another: 'AH N AH DH ER', probably: 'P R AA B AH B L IY',
+  definitely: 'D EH F AH N AH T L IY', absolutely: 'AE B S AH L UW T L IY',
+  interesting: 'IH N T R AH S T IH NG', example: 'IH G Z AE M P AH L',
+  future: 'F Y UW CH ER', actually: 'AE K CH AH L IY',
+  different: 'D IH F ER AH N T', apple: 'AE P AH L',
+  table: 'T EY B AH L', chair: 'CH EH R', window: 'W IH N D OW',
+  problem: 'P R AA B L AH M', system: 'S IH S T AH M',
+  information: 'IH N F ER M EY SH AH N', history: 'HH IH S T ER IY',
+  program: 'P R OW G R AE M', number: 'N AH M B ER',
+  company: 'K AH M P AH N IY', government: 'G AH V ER N M AH N T',
+  president: 'P R EH Z IH D AH N T', power: 'P AW ER',
+  music: 'M Y UW Z IH K', water: 'W AO T ER',
+  fire: 'F AY R', business: 'B IH Z N AH S',
+  mother: 'M AH DH ER', father: 'F AA DH ER',
+  brother: 'B R AH DH ER', sister: 'S IH S T ER',
+  happy: 'HH AE P IY', angry: 'AE NG G R IY',
+  tired: 'T AY R D', hungry: 'HH AH NG G R IY',
+  ready: 'R EH D IY', wrong: 'R AO NG', right: 'R AY T',
+  human: 'HH Y UW M AH N', animal: 'AE N AH M AH L',
+  science: 'S AY AH N S', magic: 'M AE JH IH K',
+  space: 'S P EY S', earth: 'ER TH', sun: 'S AH N',
+  moon: 'M UW N', star: 'S T AA R', planet: 'P L AE N AH T',
+  universe: 'Y UW N AH V ER S', party: 'P AA R T IY',
+  pizza: 'P IY T S AH', coffee: 'K AO F IY',
+  chocolate: 'CH AO K L AH T', cookie: 'K UH K IY',
+  breakfast: 'B R EH K F AH S T', dinner: 'D IH N ER',
+  minute: 'M IH N AH T', second: 'S EH K AH N D',
+  hour: 'AW ER', idea: 'AY D IY AH',
+  story: 'S T AO R IY', action: 'AE K SH AH N',
+  adventure: 'AE D V EH N CH ER', danger: 'D EY N JH ER',
+  secret: 'S IY K R AH T', magic: 'M AE JH IH K',
+  awesome: 'AO S AH M', cool: 'K UW L',
 };
 
 const LETTER_MAP = {

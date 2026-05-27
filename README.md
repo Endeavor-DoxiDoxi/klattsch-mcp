@@ -148,9 +148,7 @@ b120 r85 s1.0 v0 h0 g0.8 t0.4 AY . AE M . AH . L AA R JH . L AE NG G W AH JH . M
 
 ## 🎵 Demo
 
-Here's what klattsch sounds like — a sung "no" generated from a phoneme string:
-
-<audio src="https://github.com/Endeavor-DoxiDoxi/klattsch-mcp/raw/main/demo_no.wav" controls></audio>
+**▶️ [Click to play demo](https://github.com/Endeavor-DoxiDoxi/klattsch-mcp/raw/main/demo_no.wav)** — a sung "no" generated entirely from a phoneme string.
 
 The phoneme string that made this:
 ```
