@@ -1,0 +1,40 @@
+{
+  "name": "klattsch-mcp",
+  "version": "2.0.0",
+  "description": "MCP server for klattsch formant speech synthesis — lets any AI model speak and sing",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "klattsch-mcp": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "klattsch": "^0.4.0",
+    "zod": "^3.25.28"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "speech-synthesis",
+    "formant",
+    "klattsch",
+    "tts",
+    "voice",
+    "ai",
+    "claude",
+    "claude-desktop",
+    "arpabet"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Endeavor-DoxiDoxi/klattsch-mcp"
+  },
+  "homepage": "https://github.com/Endeavor-DoxiDoxi/klattsch-mcp#readme",
+  "engines": {
+    "node": ">=18"
+  }
+}
