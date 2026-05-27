@@ -146,6 +146,20 @@ b120 r85 s1.0 v0 h0 g0.8 t0.4 AY . AE M . AH . L AA R JH . L AE NG G W AH JH . M
 
 → Returns WAV audio! 🎉
 
+## 🎵 Demo
+
+Here's what klattsch sounds like — a sung "no" generated from a phoneme string:
+
+https://github.com/Endeavor-DoxiDoxi/klattsch-mcp/raw/main/demo_no.wav
+
+The phoneme string that made this:
+```
+b100 s1.0 v5 t-0.2 g0.6 bG3 r280 N OW bC4 r300 N OW bE4 r400 N OW(+10) ,
+bG4 r350 N OW , bE4 r300 N OW(-15) , b90 r220 N OW(-30) .
+```
+
+Try it yourself — paste that into the `speak` tool!
+
 ## How It Works
 
 klattsch uses Klatt-style parallel formant synthesis:
