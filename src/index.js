@@ -948,7 +948,7 @@ Provide a score object with \`segments\` (array) and optional \`sampleRate\`:
         throw new Error('score must have a "segments" array');
       }
 
-      const VOICE_DIRECTIVES = {
+      const PRESET_VOICES = {
         male_natural:    'b120 r100 s1.0 v2',
         male_deep:       'b90 r95 s0.92 v1 t-0.3 g0.6',
         male_bright:     'b135 r100 s1.0 v2 t0.2',
@@ -962,6 +962,33 @@ Provide a score object with \`segments\` (array) and optional \`sampleRate\`:
         old_man:         'b95 r105 s0.95 v3 h0.2 g0.4 t-0.4',
         singing_male:    'bC4 r300 s1.0 v5',
         singing_female:  'bG4 r300 s1.17 v4',
+      };
+
+      // Load custom voices
+      let customVoices = {};
+      try {
+        const vp = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'voices.json');
+        if (fs.existsSync(vp)) customVoices = JSON.parse(fs.readFileSync(vp, 'utf-8'));
+      } catch (_) {}
+
+      const resolveVoice = (voiceName) => {
+        // Check presets first
+        if (PRESET_VOICES[voiceName]) return PRESET_VOICES[voiceName];
+        // Check custom voices
+        if (customVoices[voiceName]) {
+          const v = customVoices[voiceName];
+          return [
+            `b${Math.round(v.basePitch)}`,
+            `r${Math.round(v.rate)}`,
+            `s${v.formantScale.toFixed(2)}`,
+            `v${v.vibrato}`,
+            `h${v.breathiness}`,
+            `t${v.tilt.toFixed(1)}`,
+            `g${v.effort.toFixed(1)}`,
+          ].join(' ');
+        }
+        // Fallback
+        return PRESET_VOICES.male_natural;
       };
 
       const parts = [];
@@ -979,7 +1006,7 @@ Provide a score object with \`segments\` (array) and optional \`sampleRate\`:
         }
 
         // Voice directives
-        const voice = VOICE_DIRECTIVES[seg.voice] || VOICE_DIRECTIVES.male_natural;
+        const voice = resolveVoice(seg.voice || 'male_natural');
         tokens.push(voice);
 
         // Note/pitch override
@@ -1053,6 +1080,156 @@ Provide a score object with \`segments\` (array) and optional \`sampleRate\`:
         content: [{ type: 'text', text: `❌ Compose error: ${err.message}` }],
         isError: true,
       };
+    }
+  }
+);
+
+// ── Tool: create_voice ───────────────────────────────────────────────────────
+server.tool(
+  'create_voice',
+  `Create and save a custom voice profile. Define your own voice — every
+klattsch parameter is tunable. Saved voices persist and can be used in
+\`compose\` segments or referenced by name.
+
+Once you create a voice, use it by name in the \`compose\` tool's \`voice\` field.
+
+### Voice parameters
+| Param | Range | Default | Effect |
+|-------|-------|---------|--------|
+| basePitch | 60-400 Hz | 120 | Base voice pitch (male ~100, female ~200, child ~280) |
+| rate | 30-500 ms | 105 | Per-phoneme duration (80=fast speech, 110=normal, 250+=sung) |
+| formantScale | 0.5-2.0 | 1.0 | Vocal tract size (1.0=male, 1.17=female, 1.3=child) |
+| vibrato | 0-12 Hz | 2 | Vibrato depth (0=off, 3=expressive, 6=dramatic) |
+| vibratoRate | 3-8 Hz | 5 | Vibrato speed |
+| breathiness | 0-1 | 0 | Aspiration mix (0.3=airy, 0.6=whisper) |
+| tilt | -0.9 - +0.9 | 0 | Spectral brightness (-=darker/warmer, +=brighter) |
+| effort | 0-1 | 0.5 | Glottal tension (0=lax/creaky, 1=tense/pressed) |
+| tremolo | 0-1 | 0 | Amplitude modulation depth |
+| tremoloRate | 3-8 Hz | 5 | Tremolo speed |
+| wordGap | 0-100 ms | 18 | Micro-pause between words |
+| sentencePause | 50-400 ms | 150 | Pause at sentence end |
+| commaPause | 20-200 ms | 80 | Pause at commas |
+
+### Examples
+Simple voice: { "name": "my_bass", "basePitch": 80, "tilt": -0.5, "effort": 0.7 }
+Song voice: { "name": "my_tenor", "basePitch": 130, "rate": 280, "vibrato": 5, "wordGap": 10 }`,
+  {
+    name: z.string().describe('Name for this voice (e.g. "my_epic_narrator"). Lowercase, underscores ok.'),
+    params: z.string().describe(
+      'JSON object with voice parameters. All fields optional — only specify what you want to customize.'
+    ),
+  },
+  async ({ name, params }) => {
+    try {
+      const p = typeof params === 'string' ? JSON.parse(params) : params;
+      const voicesPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'voices.json');
+      
+      let voices = {};
+      if (fs.existsSync(voicesPath)) {
+        voices = JSON.parse(fs.readFileSync(voicesPath, 'utf-8'));
+      }
+
+      const defaults = {
+        basePitch: 120, rate: 105, formantScale: 1.0, vibrato: 2, vibratoRate: 5,
+        breathiness: 0, tilt: 0, effort: 0.5, tremolo: 0, tremoloRate: 5,
+        wordGap: 18, sentencePause: 150, commaPause: 80,
+      };
+
+      voices[name] = { ...defaults, ...p, created: new Date().toISOString() };
+      fs.writeFileSync(voicesPath, JSON.stringify(voices, null, 2));
+
+      const v = voices[name];
+      const directives = [
+        `b${Math.round(v.basePitch)}`,
+        `r${Math.round(v.rate)}`,
+        `s${v.formantScale.toFixed(2)}`,
+        `v${v.vibrato}`,
+        `h${v.breathiness}`,
+        `t${v.tilt.toFixed(1)}`,
+        `g${v.effort.toFixed(1)}`,
+      ].join(' ');
+
+      return {
+        content: [{
+          type: 'text',
+          text: [
+            `✅ Voice "${name}" saved!`,
+            ``,
+            `**Directives:** \`${directives}\``,
+            `**Spacing:** wordGap=${v.wordGap}ms sentencePause=${v.sentencePause}ms commaPause=${v.commaPause}ms`,
+            ``,
+            `**Usage in compose:** \`{"voice": "${name}", ...}\``,
+            `**Usage in speak:** Prepend \`${directives}\` to your phoneme string.`,
+          ].join('\n'),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `❌ ${err.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── Tool: list_voices ────────────────────────────────────────────────────────
+server.tool(
+  'list_voices',
+  `List all saved custom voice profiles. Shows each voice's parameters and
+the klattsch directive string it produces.`,
+  {},
+  async () => {
+    try {
+      const voicesPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'voices.json');
+      if (!fs.existsSync(voicesPath)) {
+        return { content: [{ type: 'text', text: 'No custom voices saved yet. Use create_voice to make one!' }] };
+      }
+      const voices = JSON.parse(fs.readFileSync(voicesPath, 'utf-8'));
+      const names = Object.keys(voices);
+      if (names.length === 0) {
+        return { content: [{ type: 'text', text: 'No custom voices saved yet.' }] };
+      }
+
+      const lines = [`## ${names.length} Custom Voice(s)`];
+      for (const [name, v] of Object.entries(voices)) {
+        const dirs = `b${Math.round(v.basePitch)} r${Math.round(v.rate)} s${v.formantScale.toFixed(2)} v${v.vibrato} h${v.breathiness} t${v.tilt.toFixed(1)} g${v.effort.toFixed(1)}`;
+        lines.push(
+          `### ${name}`,
+          `\`${dirs}\``,
+          `pitch=${v.basePitch}Hz rate=${v.rate}ms scale=${v.formantScale} vibrato=${v.vibrato}Hz breath=${v.breathiness} tilt=${v.tilt} effort=${v.effort}`,
+          `spacing: wordGap=${v.wordGap}ms sentence=${v.sentencePause}ms comma=${v.commaPause}ms`,
+          ''
+        );
+      }
+      return { content: [{ type: 'text', text: lines.join('\n') }] };
+    } catch (err) {
+      return { content: [{ type: 'text', text: `❌ ${err.message}` }], isError: true };
+    }
+  }
+);
+
+// ── Tool: delete_voice ───────────────────────────────────────────────────────
+server.tool(
+  'delete_voice',
+  'Delete a saved custom voice profile.',
+  {
+    name: z.string().describe('Name of the voice to delete.'),
+  },
+  async ({ name }) => {
+    try {
+      const voicesPath = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'voices.json');
+      if (!fs.existsSync(voicesPath)) {
+        return { content: [{ type: 'text', text: `Voice "${name}" not found.` }] };
+      }
+      const voices = JSON.parse(fs.readFileSync(voicesPath, 'utf-8'));
+      if (!voices[name]) {
+        return { content: [{ type: 'text', text: `Voice "${name}" not found.` }] };
+      }
+      delete voices[name];
+      fs.writeFileSync(voicesPath, JSON.stringify(voices, null, 2));
+      return { content: [{ type: 'text', text: `✅ Deleted voice "${name}".` }] };
+    } catch (err) {
+      return { content: [{ type: 'text', text: `❌ ${err.message}` }], isError: true };
     }
   }
 );

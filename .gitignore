@@ -1,4 +1,5 @@
 node_modules/
 *.wav
 !demo_no.wav
+voices.json
 .DS_Store
