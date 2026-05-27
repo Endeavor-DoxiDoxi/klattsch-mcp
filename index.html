@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>klattsch-mcp — Demo</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 700px; margin: 60px auto; padding: 0 20px; background: #0d1117; color: #c9d1d9; }
+  h1 { color: #58a6ff; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  audio { width: 100%; margin: 20px 0; border-radius: 8px; background: #21262d; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; margin: 20px 0; }
+</style>
+</head>
+<body>
+<h1>🎤 klattsch-mcp Demo</h1>
+<p>A sung "no" — generated entirely from an ARPAbet phoneme string using klattsch formant speech synthesis.</p>
+
+<div class="card">
+  <audio controls src="demo_no.wav"></audio>
+</div>
+
+<div class="card">
+  <p><strong>The phoneme string that made this:</strong></p>
+  <pre>b100 s1.0 v5 t-0.2 g0.6 bG3 r280 N OW bC4 r300 N OW bE4 r400 N OW(+10) ,
+bG4 r350 N OW , bE4 r300 N OW(-15) , b90 r220 N OW(-30) .</pre>
+  <p>Try it — paste that into the <code>speak</code> tool!</p>
+</div>
+
+<p><a href="https://github.com/Endeavor-DoxiDoxi/klattsch-mcp">← Back to repo</a></p>
+</body>
+</html>
