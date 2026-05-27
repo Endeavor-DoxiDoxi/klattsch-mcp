@@ -303,50 +303,71 @@ const LETTER_MAP = {
   x:'EH K S', y:'W AY', z:'Z IY',
 };
 
-function englishToArpabet(text) {
-  // Split on whitespace but preserve punctuation tokens
+function englishToArpabet(text, opts = {}) {
+  const {
+    wordGap = 18,       // ms between words (0=run-on, 15-25=natural, 50+=deliberate)
+    commaPause = 80,    // ms for commas
+    periodPause = 150,  // ms for sentence end (300 is too long/robotic)
+    questionPause = 170,// ms for questions (slightly longer)
+    groupSyllables = true, // wrap multi-syllable words in ( ) for better rhythm
+  } = opts;
+
   const raw = text.toLowerCase().trim();
-  // Insert spaces around punctuation so we can split on whitespace
   const spaced = raw.replace(/([.,;:!?])/g, ' $1 ');
   const tokens = spaced.split(/\s+/);
   const parts = [];
   const unknown = [];
-  let lastTokenWasPause = false;
 
-  const PAUSE_MAP = {
-    '.': '. ',   // sentence end — 300ms pause + falling intonation context
-    '?': '. ',   // question end — 300ms pause (pitch contour handled separately)
-    '!': '. ',   // exclamation — 300ms pause
-    ',': ', ',   // short pause — 100ms
-    ';': '; ',   // medium pause — 200ms
-    ':': '; ',   // medium pause
+  const isMultiSyllable = (phonemes) => {
+    // Count vowel phonemes to determine syllable count
+    const vowels = ['IY','IH','EH','AE','AA','AO','AH','UH','UW','ER','AY','AW','EY','OW','OY'];
+    const phonemeList = phonemes.split(' ');
+    const count = phonemeList.filter(p => vowels.includes(p)).length;
+    return count >= 2;
   };
 
-  for (const token of tokens) {
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
     if (!token) continue;
 
-    // Handle punctuation
-    if (PAUSE_MAP[token]) {
-      if (!lastTokenWasPause) {
-        parts.push(PAUSE_MAP[token]);
-        lastTokenWasPause = true;
-      }
+    // Punctuation → micro-pauses (not the coarse klattsch , . ; markers)
+    if (token === '.' || token === '!') {
+      parts.push(`p${periodPause}`);
+      continue;
+    }
+    if (token === '?') {
+      parts.push(`p${questionPause}`);
+      continue;
+    }
+    if (token === ',' || token === ';' || token === ':') {
+      parts.push(`p${commaPause}`);
       continue;
     }
 
-    lastTokenWasPause = false;
+    // Word separator — tiny gap between words for natural flow
+    if (i > 0 && wordGap > 0 && !tokens[i-1].match(/[.,;:!?]/)) {
+      parts.push(`p${wordGap}`);
+    }
 
+    let phonemes;
     if (WORD_MAP[token]) {
-      parts.push(WORD_MAP[token]);
+      phonemes = WORD_MAP[token];
     } else {
       unknown.push(token);
-      const letters = token.split('').map(c => LETTER_MAP[c] || 'AH').join(' ');
-      parts.push(letters);
+      phonemes = token.split('').map(c => LETTER_MAP[c] || 'AH').join(' ');
+    }
+
+    // Group multi-syllable words for better rhythm
+    if (groupSyllables && isMultiSyllable(phonemes)) {
+      parts.push(`( ${phonemes} )`);
+    } else {
+      parts.push(phonemes);
     }
   }
 
-  // Clean up: merge consecutive pauses, remove trailing pause markers
   let phonemes = parts.join(' ').replace(/\s+/g, ' ').trim();
+  // Clean up redundant pN next to pN
+  phonemes = phonemes.replace(/p(\d+)\s+p(\d+)/g, (_, a, b) => `p${Math.max(parseInt(a), parseInt(b))}`);
 
   return {
     phonemes,
@@ -435,29 +456,70 @@ Set r250-r400 per phoneme, group notes with parentheses:
 
 ## Example Strings
 
-1. "Hello world" (male):
-   b120 r100 s1.0 HH AH L OW . W ER L D
+1. "Hello world" (male, natural):
+   b120 r100 s1.0 v2 HH AH p18 L OW p18 W ER L D p150
 
 2. "How are you?" (female, rising):
-   b200 s1.17 HH AW . AA R . Y UW(+25)
+   b200 s1.17 v2 HH AW p18 AA R p18 Y UW(+25) p170
 
 3. "I am NOT impressed" (stress on NOT):
-   b120 AY . AE M . N AO T! . IH M P R EH S T(-20)
+   b120 r95 AY p15 AE M p15 N AO T! p60 IH M P R EH S T(-20) p150
 
 4. "The quick brown fox" (energetic):
-   b135 r90 t0.2 DH AH . K W IH K . B R AW N . F AA K S
+   b135 r90 t0.2 DH AH p18 K W IH K p18 B R AW N p18 F AA K S p150
 
-5. Sing "Twinkle twinkle" (two notes):
+5. Sing "Twinkle twinkle" (note per syllable):
    bC4 r300 ( T W IH NG ) ( K AH L ) bG4 r300 ( T W IH NG ) ( K AH L )
 
 6. Dramatic movie trailer voice:
-   b95 r140 s0.95 v4 t-0.3 g0.7 IH N . AH . W ER L D(-25) .
+   b95 r140 s0.95 v4 t-0.3 g0.7 IH N p100 AH p100 W ER L D(-25) p200
 
 7. Robot announcement:
-   b130 r85 s1.0 v0 h0 g0.8 t0.4 AH T EH N SH AH N . P L IY Z
+   b130 r85 s1.0 v0 h0 g0.8 t0.4 AH T EH N SH AH N p60 P L IY Z p150
 
 8. Whispered secret:
-   b110 r105 v0 h0.5 g0.1 s1.0 P S T . D OW N T . T EH L . EH N IY W AH N
+   b110 r105 v0 h0.5 g0.1 s1.0 P S T p40 D OW N T p40 T EH L p40 EH N IY W AH N p150
+
+## 🎯 Pro Techniques for Human-Like Speech & Singing
+
+### 1. Micro-pauses, not coarse markers
+Use pN (exact ms) instead of . (300ms) or , (100ms):
+- p15-p25 between words → natural conversational flow
+- p50-p80 at commas → breath-like pause
+- p120-p180 at sentence end → natural cadence
+- p10 between syllables in fast phrases
+
+### 2. Per-syllable rate changes (CRITICAL for singing)
+Don't set rate once — vary it constantly:
+\`\`\`
+r350 bC4 OW r10 T r10 K r200 bD4 AE r100 N r50 W
+// ^ fast consonants, slow held vowels = natural singing
+\`\`\`
+
+### 3. Per-syllable pitch (for songs)
+Every syllable gets its own note:
+\`\`\`
+bF#2 ( W ER ) bA2 ( K IH T ) bF#3 ( HH AA R ) bA3 ( D ER )
+// Each (group) at a different pitch = sung melody
+\`\`\`
+
+### 4. Vibrato modulation
+Don't just set v5 — ramp it:
+\`\`\`
+v3 ...sustained vowel... v+3 ...peak... v-10 ...release... v0
+\`\`\`
+
+### 5. Syllable grouping for rhythm
+Wrap syllables in ( ) to share a rate slot, producing natural rhythm:
+\`\`\`
+( HH EH ) ( L OW ) — not HH EH L OW
+\`\`\`
+
+### 6. Tremolo for texture
+Add m0.1-m0.3 for a warbly/vintage effect on held notes.
+
+### 7. Float rates
+Fractional rates work: r243.2 — use for precise timing in complex songs.
 
 ## Phoneme Categories (all 39 phonemes)
 Vowels: IY IH EH AE AA AO AH UH UW ER AY AW EY OW OY
@@ -549,31 +611,42 @@ Returns: { filePath, byteLength, durationMs, warnings }`,
 server.tool(
   'text_to_phonemes',
   `Convert English text to an approximate klattsch phoneme string.
-This does a dictionary lookup word-by-word. Unknown words are spelled out letter-by-letter
-(which sounds robotic — hand-craft those for best results).
 
-Returns a full phoneme string ready for speak/speak_file.
-You can (and should) edit the output before passing to speak — add stress marks (!),
-pitch contours (+N/-N), adjust pauses, or fix mispronounced words.
+Uses micro-pauses (p15-p25) between words for natural flow instead of
+the coarse klattsch , . ; markers. Multi-syllable words are wrapped in ( )
+for better rhythmic grouping.
 
-The output includes control prefixes based on your voice selections.`,
+For SINGING or highly expressive speech, you MUST hand-tune the output —
+see the speak tool description for pro techniques.
+
+Returns a phoneme string ready for speak/speak_file. Always edit it before
+final render: add stress (!), pitch contours (+N/-N), per-word rate changes.`,
   {
-    text: z.string().describe('The English text to convert (e.g. "Hello, how are you?").'),
+    text: z.string().describe('The English text to convert.'),
     pitch: z.number().optional().default(120).describe(
-      'Base pitch in Hz. 100-140 = male, 180-220 = female, 250-300 = child.'
+      'Base pitch in Hz. 100-140=male, 180-220=female, 250-300=child.'
     ),
-    rate: z.number().int().optional().default(110).describe(
-      'Per-phoneme rate in ms. 80-100 = fast, 100-120 = normal, 200-400 = sung.'
+    rate: z.number().optional().default(105).describe(
+      'Global per-phoneme rate in ms. 85-105=natural speech, 200-400=sung.'
     ),
     formantScale: z.number().optional().default(1.0).describe(
-      'Formant scale: 1.0 = male, 1.17 = female, 1.3 = child.'
+      'Formant scale: 1.0=male, 1.17=female, 1.3=child.'
     ),
     vibrato: z.number().optional().default(2).describe(
-      'Vibrato depth in Hz. 0 = off, 2-3 = natural, 5-6 = dramatic/operatic.'
+      'Vibrato depth Hz. 0=off, 2-3=natural, 5+=dramatic.'
+    ),
+    wordGap: z.number().optional().default(18).describe(
+      'Micro-pause ms between words. 0=run-on, 15-25=natural, 50+=deliberate.'
+    ),
+    periodPause: z.number().optional().default(150).describe(
+      'Pause ms at sentence end. 100-180=natural, 300=robotic/too-long.'
+    ),
+    groupSyllables: z.boolean().optional().default(true).describe(
+      'Wrap multi-syllable words in ( ) for better rhythm. Disable for fast speech.'
     ),
   },
-  async ({ text, pitch, rate, formantScale, vibrato }) => {
-    const { phonemes, unknownWords, note } = englishToArpabet(text);
+  async ({ text, pitch, rate, formantScale, vibrato, wordGap, periodPause, groupSyllables }) => {
+    const { phonemes, unknownWords, note } = englishToArpabet(text, { wordGap, periodPause, groupSyllables });
     const directives = `b${pitch} r${rate} s${formantScale.toFixed(2)} v${vibrato}`;
     const full = `${directives} ${phonemes}`;
 
@@ -582,7 +655,7 @@ The output includes control prefixes based on your voice selections.`,
         {
           type: 'text',
           text: [
-            `**Voice settings:** pitch=${pitch}Hz rate=${rate}ms scale=${formantScale} vibrato=${vibrato}Hz`,
+            `**Voice:** pitch=${pitch}Hz rate=${rate}ms scale=${formantScale} vibrato=${vibrato}Hz | wordGap=${wordGap}ms sentencePause=${periodPause}ms`,
             ``,
             `**Generated phoneme string:**`,
             `\`\`\``,
@@ -591,15 +664,14 @@ The output includes control prefixes based on your voice selections.`,
             ``,
             `**Note:** ${note}`,
             unknownWords.length > 0
-              ? `\nUnknown words: ${unknownWords.join(', ')}\n→ These are spelled letter-by-letter. For better results, manually craft ARPAbet for these words.`
+              ? `\nUnknown words: ${unknownWords.join(', ')}\n→ Spelled letter-by-letter. Hand-craft these for best quality.`
               : '',
             ``,
-            `**Next step:** Pass this string to the **speak** or **speak_file** tool.`,
-            `For better results, edit it first:`,
-            `- Add ! after stressed vowels (e.g. IH M P AO R T AH N T!)`,
-            `- Add pitch contours: (+20) for rising intonation, (-20) for falling`,
-            `- Replace . pauses with , (short) or ; (medium) where appropriate`,
-            `- Adjust rate mid-speech: r90 for fast words, r120 for slow emphasis`,
+            `**Next:** Pass to **speak** or **speak_file**. For expressive results, edit first:`,
+            `- Add ! after stressed vowels: DH AE! T`,
+            `- Add pitch contours: AY+20 (rising), D AH N(-25) (falling)`,
+            `- Vary per-word rate: r85 for fast words, r120 for slow emphasis`,
+            `- For songs: replace wordGap pauses with bNoteName per syllable`,
           ].join('\n'),
         },
       ],
