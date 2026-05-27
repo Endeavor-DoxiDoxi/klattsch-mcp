@@ -784,6 +784,207 @@ Use these as prefixes before your phoneme strings.`,
   }
 );
 
+// ── Tool: compose (ADVANCED) ────────────────────────────────────────────────
+server.tool(
+  'compose',
+  `⚠️ ADVANCED TOOL — Only use this if you fully understand klattsch formant synthesis.
+For simple speech, use the regular \`speak\` or \`text_to_phonemes\` tools instead.
+
+Compose a multi-segment audio piece with full control over timing, voices,
+and prosody. Build conversations, songs, dramatic scenes, or any speech
+that needs varying voices, precise pauses, and musical pitch control.
+
+## Input: a JSON "score"
+
+Provide a score object with \`segments\` (array) and optional \`sampleRate\`:
+
+### Segment fields:
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| phonemes | string | **required** | ARPAbet phoneme string for this segment |
+| voice | string | "male_natural" | Voice preset name (see presets below) |
+| prePause | number | 0 | Silence before this segment in ms |
+| postPause | number | 0 | Silence after this segment in ms |
+| note | string | null | Override starting pitch as note (e.g. "C4", "G#3") — enables sung mode |
+| pitchHz | number | null | Override starting pitch in Hz (e.g. 200, 120) |
+| rate | number | 110 | Per-phoneme rate in ms (80=fast, 110=normal, 250+=sung) |
+| pitchShift | number | 0 | Shift pitch relative (-30=falling, +20=rising) for last phoneme |
+| stress | string[] | [] | Words to stress within this segment (adds ! after their vowels) |
+| label | string | null | Label for this segment (helps organize complex compositions) |
+
+### Voice presets (for the \`voice\` field):
+- male_natural, male_deep, male_bright
+- female_natural, female_warm, female_bright
+- child, robot, whisper, dramatic, old_man
+- singing_male, singing_female
+
+### Segment build process:
+1. Start with voice preset directives
+2. If note/pitchHz provided, override base pitch
+3. Set custom rate if specified
+4. Add prePause as pN directive
+5. Append phoneme string
+6. Apply pitchShift to final phoneme
+7. Add postPause as pN directive
+
+## Examples
+
+### Two-voice conversation with dramatic pauses:
+\`\`\`json
+{
+  "segments": [
+    {"phonemes": "HH EH L OW . HH UW Z DH IH S", "voice": "male_deep", "postPause": 400},
+    {"phonemes": "IH T S . AH . R OW B AH T . AH V . K AO R S", "voice": "robot", "prePause": 200, "postPause": 600},
+    {"phonemes": "W EH L . DH AE T S . N OW T . G UH D(-25)", "voice": "male_deep", "prePause": 300}
+  ]
+}
+\`\`\`
+
+### Sung melody (verse + chorus):
+\`\`\`json
+{
+  "segments": [
+    {"phonemes": "T W IH NG K AH L . T W IH NG K AH L", "voice": "singing_male", "note": "C4", "rate": 300},
+    {"phonemes": "L IH T AH L . S T AA R", "voice": "singing_male", "note": "G4", "rate": 320, "pitchShift": -20}
+  ]
+}
+\`\`\`
+
+### Dramatic narration with varied pacing:
+\`\`\`json
+{
+  "segments": [
+    {"phonemes": "IH N . AH . W ER L D . W EH R . EH V R IY TH IH NG . CH EY N JH D", "voice": "dramatic", "prePause": 500, "postPause": 800},
+    {"phonemes": "W AH N . M AE N(-25)", "voice": "dramatic", "rate": 160, "note": "A2"},
+    {"phonemes": "W AH N . T OW S T ER(-30)", "voice": "dramatic", "rate": 180, "note": "E3", "prePause": 400}
+  ]
+}
+\`\`\``,
+  {
+    score: z.string().describe(
+      'JSON string of the score object with a "segments" array. Each segment has phonemes + optional voice, prePause, postPause, note, pitchHz, rate, pitchShift, label.'
+    ),
+    sampleRate: z.number().int().min(8000).max(48000).optional().default(22050),
+    outputPath: z.string().optional().describe(
+      'If provided, writes WAV to this file path instead of returning base64.'
+    ),
+  },
+  async ({ score, sampleRate, outputPath }) => {
+    try {
+      const data = typeof score === 'string' ? JSON.parse(score) : score;
+      if (!data.segments || !Array.isArray(data.segments)) {
+        throw new Error('score must have a "segments" array');
+      }
+
+      const VOICE_DIRECTIVES = {
+        male_natural:    'b120 r100 s1.0 v2',
+        male_deep:       'b90 r95 s0.92 v1 t-0.3 g0.6',
+        male_bright:     'b135 r100 s1.0 v2 t0.2',
+        female_natural:  'b200 r100 s1.17 v2',
+        female_warm:     'b185 r105 s1.15 v3 t-0.2',
+        female_bright:   'b220 r100 s1.18 v2 t0.2',
+        child:           'b280 r90 s1.3 v1',
+        robot:           'b120 r85 s1.0 v0 h0 g0.8 t0.5',
+        whisper:         'b110 r105 s1.0 v0 h0.6 g0.1',
+        dramatic:        'b100 r140 s1.0 v5 t-0.2 g0.65',
+        old_man:         'b95 r105 s0.95 v3 h0.2 g0.4 t-0.4',
+        singing_male:    'bC4 r300 s1.0 v5',
+        singing_female:  'bG4 r300 s1.17 v4',
+      };
+
+      const parts = [];
+      const summary = [];
+
+      for (let i = 0; i < data.segments.length; i++) {
+        const seg = data.segments[i];
+        if (!seg.phonemes) throw new Error(`Segment ${i} missing phonemes`);
+
+        const tokens = [];
+
+        // Pre-pause
+        if (seg.prePause && seg.prePause > 0) {
+          tokens.push(`p${Math.round(seg.prePause)}`);
+        }
+
+        // Voice directives
+        const voice = VOICE_DIRECTIVES[seg.voice] || VOICE_DIRECTIVES.male_natural;
+        tokens.push(voice);
+
+        // Note/pitch override
+        if (seg.note) {
+          tokens.push(`b${seg.note}`);
+        } else if (seg.pitchHz) {
+          tokens.push(`b${seg.pitchHz}`);
+        }
+
+        // Custom rate
+        if (seg.rate) {
+          tokens.push(`r${seg.rate}`);
+        }
+
+        // Phonemes
+        tokens.push(seg.phonemes);
+
+        // Post-pause
+        if (seg.postPause && seg.postPause > 0) {
+          tokens.push(`p${Math.round(seg.postPause)}`);
+        }
+
+        parts.push(tokens.join(' '));
+        summary.push({
+          index: i,
+          label: seg.label || `segment_${i}`,
+          voice: seg.voice || 'male_natural',
+          note: seg.note || null,
+          prePause: seg.prePause || 0,
+          postPause: seg.postPause || 0,
+        });
+      }
+
+      const utterance = parts.join(' ');
+      const { base64, durationMs, warnings } = renderToWavBase64(utterance, sampleRate);
+
+      let fileInfo = null;
+      if (outputPath) {
+        const bytes = Buffer.from(base64, 'base64');
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(outputPath, bytes);
+        fileInfo = { path: outputPath, bytes: bytes.length };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              durationMs,
+              durationSec: (durationMs / 1000).toFixed(1),
+              segmentCount: data.segments.length,
+              segments: summary,
+              warnings,
+              ...(fileInfo ? { file: fileInfo } : {}),
+            }, null, 2),
+          },
+          ...(outputPath ? [] : [{
+            type: 'resource',
+            resource: {
+              uri: `data:audio/wav;base64,${base64}`,
+              mimeType: 'audio/wav',
+              text: base64,
+            },
+          }]),
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: `❌ Compose error: ${err.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════════════════════════════════
